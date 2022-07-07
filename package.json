@@ -8,7 +8,8 @@
     "type": "git",
     "url": "git+https://github.com/coin98/connect-sdk.git"
   },
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
   "source": [
     "src/index.ts",
     "src/native.ts"
