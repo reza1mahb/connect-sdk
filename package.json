@@ -1,5 +1,5 @@
 {
-  "name": "@coin98/connect-sdk",
+  "name": "@coin98-com/connect-sdk",
   "version": "1.0.0",
   "description": "Coin98 Connect SDK - The leading multi-chain wallet and DeFi gateway.",
   "author": "support@coin98.com",
@@ -80,5 +80,9 @@
     "events": "^3.3.0",
     "react-native-uuid": "^2.0.1",
     "socket.io-client": "^4.5.1"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/coin98/connect-sdk/issues"
+  },
+  "homepage": "https://github.com/coin98/connect-sdk#readme"
 }
