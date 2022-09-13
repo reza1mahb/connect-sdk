@@ -46,10 +46,12 @@ export class CosmJSOfflineSignerOnlyAmino {
       throw new Error('Unknown signer address')
     }
 
-    return this.client.request({
+    const response = await this.client.request({
       method: 'cosmos_signAmino',
       params: [this.chainId, signerAddress, signDoc]
     })
+
+    return response.result || response
   }
 
   // Fallback function for the legacy cosmjs implementation before the stargate.
@@ -92,9 +94,11 @@ export class CosmJSOfflineSigner extends CosmJSOfflineSignerOnlyAmino {
       signDoc.authInfoBytes = base58.encode(signDoc.authInfoBytes)
     }
 
-    return await this.client.request({
+    const response = await this.client.request({
       method: 'cosmos_signDirect',
       params: [this.chainId, signerAddress, signDoc]
     })
+
+    return response.result || response
   }
 }
