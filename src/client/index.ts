@@ -28,11 +28,17 @@ class Coin98Client extends EventEmitter {
   constructor () {
     super()
 
-    try {
-      this.id = new DeviceUUID().get()
-    } catch (e) {
-      this.id = window.localStorage.getItem('uuid') || uniqueId()
+    this.generateClient()
+    // Polyfill
+    if (typeof window !== 'undefined' && !window.BigInt) {
+      window.BigInt = BigIntPolyfill
     }
+
+    return this
+  }
+
+  private generateClient = () => {
+    this.onGenerateAppId()
 
     this.client = io(SERVER, {
       transports: ['websocket'],
@@ -51,13 +57,6 @@ class Coin98Client extends EventEmitter {
     })
 
     window.client = this.client
-
-    // Polyfill
-    if (typeof window !== 'undefined' && !window.BigInt) {
-      window.BigInt = BigIntPolyfill
-    }
-
-    return this
   }
 
   public connect = (chain: string, options: connectOptions) => {
@@ -65,12 +64,16 @@ class Coin98Client extends EventEmitter {
       throw new Error('Unsupported Chain ID')
     }
 
-    if (!this.client) {
+    if (!this.client && !this.id) {
       throw new Error('Coin98 Connect has not been initialized')
     }
 
     if (!options.name) {
       throw new Error('Dapps Name required')
+    }
+
+    if (!this.client) {
+      this.generateClient()
     }
 
     this.chain = chain

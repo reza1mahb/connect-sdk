@@ -73,6 +73,7 @@ export type requestParameter = {
 }
 
 export type connectOptions = {
+  id?: string | number
   logo?: string
   name: string
   url: string
