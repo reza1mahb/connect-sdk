@@ -45,7 +45,9 @@ class Coin98Client extends EventEmitter {
     this.client = io(SERVER, {
       transports: ['websocket'],
       timeout: 600000,
-      closeOnBeforeunload: false
+      closeOnBeforeunload: false,
+      reconnection: true,
+      autoConnect: true
     })
 
     this.client.on('sdk_connect', (ev: EventType) => {
@@ -54,8 +56,11 @@ class Coin98Client extends EventEmitter {
     })
 
     this.client.on('disconnect', () => {
-      this.isConnected = false
-      this.emit('disconnect')
+      // Automatically reconnect | remove automatically disconnect
+      // this.isConnected = false
+      if (typeof this.client?.reconnect === 'function') {
+        this.client.reconnect()
+      }
     })
 
     window.client = this.client
@@ -82,7 +87,9 @@ class Coin98Client extends EventEmitter {
     this.name = options.name
 
     // Reset Connection ID
-    this.onGenerateAppId()
+    if (!options.id) {
+      this.onGenerateAppId()
+    }
     // Validate Input
 
     return new Promise((resolve, reject) => {
@@ -132,6 +139,8 @@ class Coin98Client extends EventEmitter {
 
   public disconnect = () => {
     this.isConnected = false
+    // Emit disconnect event
+    this.emit('disconnect')
     // Cleanup connection
     this.clearSession()
     this.client.close()
@@ -185,12 +194,16 @@ class Coin98Client extends EventEmitter {
     )}`
 
     const _this = this
-    return new Promise((resolve) => {
+    const promisify = new Promise((resolve) => {
       _this.once(id, (e) => {
         resolve(e)
       })
       this.openURL(encodedURL)
     })
+
+    const result = await promisify
+
+    return result
   }
 
   // Cosmos Methods
@@ -319,10 +332,15 @@ class Coin98Client extends EventEmitter {
   }
 
   private onGenerateAppId = () => {
-    try {
-      this.id = new DeviceUUID().get()
-    } catch (e) {
-      this.id = window.localStorage.getItem('uuid') || uniqueId()
+    const existId = window.localStorage.getItem('uuid')
+    if (!existId) {
+      try {
+        this.id = new DeviceUUID().get()
+      } catch (e) {
+        this.id = window.localStorage.getItem('uuid') || uniqueId()
+      }
+    } else {
+      this.id = existId
     }
   }
 }
