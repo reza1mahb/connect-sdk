@@ -20,6 +20,7 @@ class Coin98Client extends EventEmitter {
 
   private id?: string | number[]
   private shouldReconnect: boolean = false
+  private name: string | any
 
   public client: any
   public linkModule?: any
@@ -78,6 +79,7 @@ class Coin98Client extends EventEmitter {
     }
 
     this.chain = chain
+    this.name = options.name
 
     // Reset Connection ID
     this.onGenerateAppId()
@@ -140,7 +142,8 @@ class Coin98Client extends EventEmitter {
       // Reconnect and push new request
       await this.connect(this.chain, {
         // @ts-expect-error
-        id: this.id
+        id: this.id,
+        name: this.name
       })
     }
 
