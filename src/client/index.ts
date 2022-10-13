@@ -19,6 +19,7 @@ class Coin98Client extends EventEmitter {
   protected isNative?: boolean = false
 
   private id?: string | number[]
+  private shouldReconnect: boolean = false
 
   public client: any
   public linkModule?: any
@@ -118,6 +119,7 @@ class Coin98Client extends EventEmitter {
             }
 
             this.isConnected = true
+            this.shouldReconnect = true
 
             resolve(result)
           }
@@ -133,7 +135,15 @@ class Coin98Client extends EventEmitter {
     this.client.close()
   }
 
-  public request = (args: requestParameter) => {
+  public request = async (args: requestParameter) => {
+    if (!this.isConnected && this.shouldReconnect && this.id) {
+      // Reconnect and push new request
+      await this.connect(this.chain, {
+        // @ts-expect-error
+        id: this.id
+      })
+    }
+
     if (!this.isConnected && args.method !== 'connect') {
       throw new Error('You need to connect before handle any request!')
     }
