@@ -1,1 +1,1 @@
-export const SERVER: string = 'https://socket.coin98.services/'
+export const SERVER: string = 'https://socket.coin98.com/'
