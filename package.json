@@ -9,14 +9,22 @@
     "url": "git+https://github.com/coin98/connect-sdk.git"
   },
   "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
+  "types": "./dist/index.d.ts",
   "source": [
     "src/index.ts",
-    "src/native.ts"
+    "src/native.ts",
+    "src/lite.ts"
   ],
   "exports": {
     ".": "./dist/index.js",
-    "./native": "./dist/native.js"
+    "./native": "./dist/native.js",
+    "./lite": "./dist/lite.js"
+  },
+  "typesVersions": {
+    "*": {
+      "native": ["./dist/native.d.ts"],
+      "lite": ["./dist/lite.d.ts"]
+    }
   },
   "engines": {
     "node": ">=10"

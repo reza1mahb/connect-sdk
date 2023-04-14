@@ -38,6 +38,23 @@ client.connect(Chain.fantom, {
 ```
 
 
+### Lite without any handler (Example With React Native)
+```ts
+import { Client, Chain } from '@coin98-com/connect-sdk/dist/lite'
+import { Linking } from 'react-native'
+const client = new Client({
+  callback(cUrl){
+    Linking.openURL(cUrl);
+  }
+})
+
+client.connect(Chain.fantom, {
+  logo: "Dapps Logo URL",
+  name: "Dapps Name",
+  callbackURL: "Application URI Schema"
+})
+```
+
 ### Common API Request
 
 ```ts

@@ -2,98 +2,75 @@ import { io } from 'socket.io-client'
 import { EventEmitter } from 'events'
 import { SERVER } from '../config'
 import {
-  // eslint-disable-next-line no-unused-vars
   EventType,
-  // eslint-disable-next-line no-unused-vars
   requestParameter,
-  // eslint-disable-next-line no-unused-vars
-  connectOptions
+  connectNativeOptions,
+  LiteClientConfig
 } from '../types/client'
 import { compact, uniqueId } from '../utils/functions'
 import bs58 from '../utils/base58'
 import BigIntPolyfill from 'bignumber.js'
 import { CosmJSOfflineSigner, CosmJSOfflineSignerOnlyAmino } from './cosmos'
-import { DeviceUUID } from 'device-uuid'
 
 declare let window: any
 
 class Coin98Client extends EventEmitter {
   protected isConnected: boolean = false
   protected isNative?: boolean = false
-
   private id?: string | number[]
-  private shouldReconnect: boolean = false
-  private name: string | any
-
+  private createdWindow: Window
   public client: any
-  public linkModule?: any
+
   public chain: string
   public callbackURL: string
+  public callback: (link: string) => any
 
-  constructor () {
+  constructor (config: LiteClientConfig) {
     super()
 
-    this.generateClient()
+    this.isNative = true
+    this.callback = config.callback
+
     // Polyfill
     if (typeof window !== 'undefined' && !window.BigInt) {
       window.BigInt = BigIntPolyfill
     }
 
+    this.genConnection()
     return this
   }
 
-  private generateClient = () => {
-    this.onGenerateAppId()
-
-    this.client = io(SERVER, {
-      transports: ['websocket'],
-      timeout: 600000,
-      closeOnBeforeunload: false,
-      reconnection: true,
-      autoConnect: true
-    })
-
-    this.client.on('sdk_connect', (ev: EventType) => {
-      const { id } = ev.data
-      this.emit(id, ev.data)
-    })
-
-    this.client.on('disconnect', () => {
-      // Automatically reconnect | remove automatically disconnect
-      // this.isConnected = false
-      if (typeof this.client?.reconnect === 'function') {
-        this.client.reconnect()
-      }
-    })
-
-    window.client = this.client
-  }
-
-  public connect = (chain: string, options: connectOptions) => {
+  public connect = (
+    chain: string,
+    options: connectNativeOptions
+  ) => {
     if (!chain) {
-      throw new Error('Unsupported Chain ID')
-    }
-
-    if (!this.client && !this.id) {
-      throw new Error('Coin98 Connect has not been initialized')
-    }
-
-    if (!options.name) {
-      throw new Error('Dapps Name required')
+      throw new Error('Chain required')
     }
 
     if (!this.client) {
-      this.generateClient()
+      throw new Error('Initialize SDK First')
+    }
+
+    if (!options.name) {
+      throw new Error('Provide your app name before continue')
+    }
+
+    if (this.isNative) {
+      if (!options.callbackURL) {
+        throw new Error('Provide your callback URL For Native App')
+      }
+      this.callbackURL = options.callbackURL
     }
 
     this.chain = chain
-    this.name = options.name
+    // Reset UUID for new connection
+    this.id = options.id || uniqueId()
 
-    // Reset Connection ID
-    if (!options.id) {
-      this.onGenerateAppId()
+    if (options.id) {
+      this.isConnected = true
+      return options.id
     }
-    // Validate Input
 
     return new Promise((resolve, reject) => {
       // Initialize SDK
@@ -102,23 +79,15 @@ class Coin98Client extends EventEmitter {
         {
           type: 'connection_request',
           message: {
-            url: new URL(window.location.href).origin,
+            url: this.callbackURL,
             id: this.id
           }
         },
         async (cnnStr: string) => {
-          // Verify your connection ID
-          const isVerify = await this.verifySession(cnnStr)
-
-          if (!isVerify) {
-            return reject(new Error('Session is over'))
-          }
-
-          // Make a response for your connection string
+          // take response id and next
           this.id = cnnStr
 
           if (!this.isConnected) {
-            this.saveSession(this.id, chain)
             const result: any = await this.request({
               method: 'connect',
               params: [options]
@@ -127,11 +96,10 @@ class Coin98Client extends EventEmitter {
             const errors = result?.error || result?.errors || !result.result
 
             if (errors) {
-              return reject(new Error(errors.message || 'Connection Rejected'))
+              return reject(new Error(errors.message || 'Connect Rejected'))
             }
 
             this.isConnected = true
-            this.shouldReconnect = true
 
             resolve(result)
           }
@@ -142,22 +110,11 @@ class Coin98Client extends EventEmitter {
 
   public disconnect = () => {
     this.isConnected = false
-    // Emit disconnect event
-    this.emit('disconnect')
-    // Cleanup connection
-    this.clearSession()
     this.client.close()
   }
 
-  public request = async (args: requestParameter) => {
-    if (!this.isConnected && this.shouldReconnect && this.id) {
-      // Reconnect and push new request
-      await this.connect(this.chain, {
-        // @ts-expect-error
-        id: this.id,
-        name: this.name
-      })
-    }
+  public request = (args: requestParameter) => {
+    this.genConnection()
 
     if (!this.isConnected && args.method !== 'connect') {
       throw new Error('You need to connect before handle any request!')
@@ -192,21 +149,22 @@ class Coin98Client extends EventEmitter {
       this.callbackURL || window?.location?.href
     )
 
-    const encodedURL = `${this.id}&request=${this.santinizeParams(
+    const encodedURL = this.santinizeURL(`${this.id}&request=${this.santinizeParams(
       requestParams
-    )}`
+    )}`)
 
     const _this = this
-    const promisify = new Promise((resolve) => {
+    return new Promise((resolve) => {
       _this.once(id, (e) => {
+        this.createdWindow && this.createdWindow.close()
         resolve(e)
       })
-      this.openURL(encodedURL)
+
+      if (this.callback) {
+        return this.callback(encodedURL)
+      }
+      return encodedURL
     })
-
-    const result = await promisify
-
-    return result
   }
 
   // Cosmos Methods
@@ -272,79 +230,36 @@ class Coin98Client extends EventEmitter {
     return encodeURIComponent(JSON.stringify(params))
   }
 
-  private saveSession (id: string, chain: string) {
-    if (
-      typeof window !== 'undefined' &&
-      typeof sessionStorage !== 'undefined'
-    ) {
-      window.sessionStorage.setItem(
-        'Coin98Connection',
-        JSON.stringify({ id, chain })
-      )
-    }
-  }
-
-  private verifySession (uri: string): Promise<boolean> {
-    const sParams = new URLSearchParams(uri.split('?')[1])
-    const token = sParams.get('connect')
-
-    return new Promise(resolve => {
-      this.client.emit('coin98_connect', {
-        type: 'verify_sdk',
-        message: {
-          token
-        }
-      }, (response: boolean) => {
-        resolve(response)
-      })
-    })
-  }
-
-  private clearSession () {
-    if (
-      typeof window !== 'undefined' &&
-      typeof sessionStorage !== 'undefined'
-    ) {
-      window.sessionStorage.removeItem('Coin98Connection')
-    }
-  }
-
-  private openURL (url: string) {
+  private santinizeURL = (url:string) => {
     // Santinize url
     url = encodeURIComponent(url)
     url = url.startsWith('coin98://') ? url : `coin98://${url}`
-    if (window.location.hash) {
-      console.log('send?----')
-      // Simulate Href Click
-      const aTag = document.createElement('a')
-      aTag.setAttribute('id', 'coin98Clickable')
-      aTag.setAttribute('href', url)
-      document.body.appendChild(aTag)
-      requestAnimationFrame(() => {
-        aTag.click()
-        // Safely Remove After Done
-        setTimeout(() => {
-          const clickable = document.querySelector('#coin98Clickable')
-          // eslint-disable-next-line no-unused-expressions
-          clickable?.remove()
-        }, 200)
-      })
-    } else {
-      window.location.href = url
-    }
+    return url
   }
 
-  private onGenerateAppId = () => {
-    const existId = window.localStorage.getItem('uuid')
-    if (!existId) {
-      try {
-        this.id = new DeviceUUID().get()
-      } catch (e) {
-        this.id = window.localStorage.getItem('uuid') || uniqueId()
+  private genConnection () {
+    return new Promise(resolve => {
+      if (!this.client || this.client.disconnected) {
+        this.client = io(SERVER, {
+          transports: ['websocket']
+        })
+
+        this.client.on('connect', () => {
+          resolve(true)
+        })
+
+        this.client.on('sdk_connect', (ev: EventType) => {
+          const { id } = ev.data
+          this.emit(id, ev.data)
+        })
+
+        this.client.on('disconnect', () => {
+          this.isConnected = false
+          this.emit('disconnect')
+        })
       }
-    } else {
-      this.id = existId
-    }
+      resolve('')
+    })
   }
 }
 

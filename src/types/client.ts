@@ -15,6 +15,10 @@ export type optionType = {
   appId?: string
 }
 
+export type LiteClientConfig = {
+  callback: (link: string) => any
+}
+
 const evmRequest = [
   'eth_getEncryptionPublicKey',
   'eth_sign',
@@ -80,7 +84,13 @@ export type connectOptions = {
 }
 
 export type connectNativeOptions = {
+  id?: string
   logo: string
   name: string
   callbackURL: string
+}
+
+export type Connection = {
+  id: string | number
+  chain: string
 }
